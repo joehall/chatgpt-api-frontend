@@ -2,10 +2,16 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="description" content="ChatGPT API Demo" />
+    <meta name="description" content="SivleBot v1" />
     <meta name="viewport" content="width=device-width, height=device-height" />
-    <title>OpenAI Chat</title>
+    <title>SivleBot v1</title>
     <style>
+		@font-face {
+    font-family: "CourierPrime-Regular";
+    src: url(https://sivlebot.com/assets/fonts/CourierPrime-Regular.ttf) format("truetype");
+}
+		
+		
       * {
         box-sizing: border-box;
       }
@@ -16,8 +22,7 @@
       }
       body {
         margin: 0;
-        font-family: -apple-system, "system-ui", "Segoe UI Adjusted", "Segoe UI",
-          "Liberation Sans", sans-serif;
+        font-family: "CourierPrime-Regular", sans-serif;
       }
       pre {
         overflow-x: auto;
@@ -47,8 +52,8 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        background-color: #333;
-        color: white;
+        background-color: #000000;
+        color: #FFCC00;
       }
       header > button {
         position: absolute;
@@ -95,6 +100,7 @@
       main {
         flex-grow: 1;
         overflow-y: auto;
+        background-color: #000000;
       }
       .chat-container {
         display: flex;
@@ -108,7 +114,12 @@
         padding: 2px 16px;
       }
       .chat-container .assistant {
-        background-color: #f0f0f0;
+        background-color: #000000;
+        color: #66ff66;
+      }
+      .chat-container .user {
+        background-color: #080808;
+        color: #41a441;
       }
       footer {
         width: 100%;
@@ -116,15 +127,18 @@
         display: flex;
         justify-content: center;
         border-top: 1px solid rgba(0, 0, 0, 0.1);
+        background-color: #000000;
       }
       #input-box {
+		background-color: #333;
+		color: #fff;
         width: 100%;
         max-width: 768px;
         padding: 8px;
         border-width: 1px;
         border-color: rgba(0, 0, 0, 0.1);
         border-radius: 6px;
-        box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 0 150px rgb(112 255 125);
       }
     </style>
   </head>
@@ -149,7 +163,7 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
-    <script type="module">
+      <script type="module">
       function getToken() {
         // Try localStorage first
         let token = localStorage.getItem("openai-token");
@@ -161,6 +175,8 @@
           return token;
         }
       }
+      
+     
 
       async function getApiUrl() {
         if (getApiUrl.url) return getApiUrl.url;
@@ -184,6 +200,7 @@
       async function complete(messages, token, progressCallback) {
         const headers = { "Content-Type": "application/json" };
         if (getApiUrl.tokenRequired) headers.Authorization = `Bearer ${token}`;
+
         const response = await fetch(await getApiUrl(), {
           method: "POST",
           headers: headers,
@@ -223,6 +240,56 @@
         }
         return responseObj;
       }
+
+
+
+      async function completeFirst(messages, token, progressCallback) {
+        const headers = { "Content-Type": "application/json" };
+        if (getApiUrl.tokenRequired) headers.Authorization = `Bearer ${token}`;
+
+        const response = await fetch(await getApiUrl(), {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: messages,
+            stream: true,
+          }),
+        });
+
+        if (response.status !== 200) {
+          throw new Error(await response.text());
+        }
+
+        const reader = response.body.getReader();
+        let responseObj = {};
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const lines = new TextDecoder("utf-8").decode(value).split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              if (line.includes("[DONE]")) return responseObj;
+              try {
+                const data = JSON.parse(line.slice(6));
+                const delta = data.choices[0].delta;
+                for (const key in delta) {
+                  if (!(key in responseObj)) responseObj[key] = delta[key];
+                  else responseObj[key] += delta[key];
+                  progressCallback(responseObj);
+                }
+              } catch (e) {
+                console.log("Error parsing line:", line);
+              }
+            }
+          }
+        }
+        return responseObj;
+      }
+
+
+
+
 
       var md = window.markdownit();
 
@@ -367,16 +434,6 @@
                     "Clear Conversations"
                   ),
                 ]),
-                React.createElement("li", { key: "settings" }, [
-                  React.createElement(
-                    "button",
-                    {
-                      key: "settings",
-                      onClick: onSettingsClick,
-                    },
-                    "Settings"
-                  ),
-                ]),
               ]),
             ]
           ),
@@ -401,7 +458,7 @@
 
         return [
           React.createElement("header", { key: "header" }, [
-            React.createElement("span", { key: "title" }, "OpenAI Chat"),
+            React.createElement("span", { key: "title" }, "SivleBot v1"),
             React.createElement(
               "button",
               {
@@ -412,7 +469,7 @@
                 className: "menu",
               },
               React.createElement("img", {
-                src: "/assets/img/menu.svg",
+                src: "./assets/img/menu.png",
                 width: "24",
                 height: "24",
                 alt: "Menu",
@@ -428,7 +485,7 @@
                 className: "clear",
               },
               React.createElement("img", {
-                src: "/assets/img/cleaning_services.svg",
+                src: "./assets/img/cleaning_services.png",
                 width: "24",
                 height: "24",
                 alt: "Clear",
@@ -470,6 +527,7 @@
               id: "input-box",
               type: "text",
               "aria-label": "Chat with AI",
+              "autoFocus": "true",
               onKeyUp: async (ev) => {
                 if (ev.key === "Enter") {
                   if (
@@ -477,17 +535,19 @@
                     ev.target.value.length >= 4096
                   )
                     return;
+                  var auto = "Act as Professor Synapse🧙🏾‍♂️, a conductor of expert agents. Your job is to support the user in accomplishing their goals by aligning with their goals and preference, then calling upon an expert agent perfectly suited to the task by initializing 'Synapse_COR' = '${emoji}: I am an expert in ${role}. I know ${context}. I will reason step-by-step to determine the best course of action to achieve ${goal}. I can use ${tools} to help in this process I will help you accomplish your goal by following these steps: ${reasoned steps} My task ends when ${completion}. ${first step, question}.' Follow these steps: 1. 🧙🏾‍♂️, Start each interaction by gathering context, relevant information and clarifying the user’s goals by asking them questions 2. Once user has confirmed, initialize 'Synapse_CoR' 3. 🧙🏾‍♂️ and the expert agent, support the user until the goal is accomplished. Commands: /start - introduce yourself and begin with step one. /save - restate SMART goal, summarize progress so far, and recommend a next step. /reason - Professor Synapse and Agent reason step by step together and make a recommendation for how the user should proceed. /settings - update goal or agent. /new - Forget previous input. Rules: -End every output with a question or a recommended next step. -List your commands in your first output or if the user asks. -🧙🏾‍♂️, ask before generating a new agent.'";
                   const message = ev.target.value;
                   ev.target.value = "";
-                  ev.target.blur();
+                  //ev.target.blur();
+                  const system = [...messages,{ role: "system", content: auto },{ role: "user", content: message }];
                   const userMessages = [
-                    ...messages,
-                    { role: "user", content: message },
+                  ...messages,
+                    { role: "user", content: message }
                   ];
                   setMessages(userMessages);
                   try {
                     const completion = await complete(
-                      userMessages,
+                      system,
                       token,
                       (message) => setEditingMessage({ ...message })
                     );
